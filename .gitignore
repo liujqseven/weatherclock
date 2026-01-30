@@ -1,7 +1,7 @@
 # ESP-IDF Project .gitignore
 
 # Build output
-/build/
+**/build/
 *.bin
 *.elf
 *.map
@@ -15,7 +15,7 @@
 
 # CMake
 CMakeCache.txt
-CMakeFiles/
+**/CMakeFiles/
 *.cmake
 
 # Ninja
@@ -28,10 +28,10 @@ __pycache__/
 *.pyc
 
 # ESP-IDF specific
-/sdkconfig
-/sdkconfig.defaults
-/partition_table/
-/components/partition_table/
+**/sdkconfig
+**/sdkconfig.defaults
+**/partition_table/
+**/components/partition_table/
 
 # Secure credentials
 *.pem
@@ -66,8 +66,8 @@ coverage/
 .cache/
 
 # Zlib (if built as component)
-/components/zlib/zlib-1.3.1.tar.gz
-/components/zlib/zlib-1.3.1/
+**/zlib-1.3.1.tar.gz
+**/zlib-1.3.1/
 
 # Archive files
 *.tar.gz
