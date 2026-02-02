@@ -9,10 +9,11 @@
 
 #include <stdbool.h>
 #include "esp_err.h"
+#include "config.h"
 
 /* WiFi连接设置 */
-#define WIFI_SSID           "WIFI_SSID"
-#define WIFI_PASSWORD       "WIFI_PASSWORD"
+#define WIFI_CONFIG_SSID           WIFI_SSID
+#define WIFI_CONFIG_PASSWORD       WIFI_PASSWORD
 #define WIFI_CONNECT_TIMEOUT 20      // 连接超时时间（秒）
 #define WIFI_RETRY_INTERVAL 500     // 重试间隔（毫秒）
 

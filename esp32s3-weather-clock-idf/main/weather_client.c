@@ -174,7 +174,7 @@ esp_err_t weather_client_fetch_data(weather_data_t *data)
     char url[512];
     snprintf(url, sizeof(url),
              "https://%s/v7/weather/now?location=%s&key=%s&lang=zh",
-             API_HOST, LOCATION_ID, API_KEY);
+             API_HOST, WEATHER_LOCATION_ID, API_KEY);
     
     ESP_LOGI(TAG, "Fetching weather data from: %s", url);
     

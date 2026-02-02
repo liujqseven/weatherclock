@@ -10,11 +10,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "esp_err.h"
+#include "config.h"
 
 /* 和风天气API配置 */
 #define API_HOST            "devapi.qweatherapi.com"
-#define API_KEY             "api_key_token"
-#define LOCATION_ID         "101020100"  // 上海市ID
+#define API_KEY             WEATHER_API_KEY
+#define WEATHER_LOCATION_ID LOCATION_ID
 
 /* 天气数据结构体 */
 typedef struct {

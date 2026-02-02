@@ -77,6 +77,11 @@ coverage/
 # Arduino examples
 ARDexample/
 
+# Configuration files
+**/config.h
+**/credentials.h
+**/secrets.h
+
 # Other build artifacts
 *.o
 *.a

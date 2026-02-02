@@ -106,8 +106,8 @@ esp_err_t wifi_manager_init(void)
     /* 配置WiFi参数 */
     wifi_config_t wifi_config = {
         .sta = {
-            .ssid = WIFI_SSID,
-            .password = WIFI_PASSWORD,
+            .ssid = WIFI_CONFIG_SSID,
+            .password = WIFI_CONFIG_PASSWORD,
             .threshold.authmode = WIFI_AUTH_WPA2_PSK,
             .pmf_cfg = {
                 .capable = true,
@@ -129,10 +129,10 @@ esp_err_t wifi_manager_init(void)
                                            pdMS_TO_TICKS(WIFI_CONNECT_TIMEOUT * 1000));
     
     if (bits & WIFI_CONNECTED_BIT) {
-        ESP_LOGI(TAG, "Connected to SSID: %s", WIFI_SSID);
+        ESP_LOGI(TAG, "Connected to SSID: %s", WIFI_CONFIG_SSID);
         return ESP_OK;
     } else if (bits & WIFI_FAIL_BIT) {
-        ESP_LOGE(TAG, "Failed to connect to SSID: %s", WIFI_SSID);
+        ESP_LOGE(TAG, "Failed to connect to SSID: %s", WIFI_CONFIG_SSID);
         return ESP_FAIL;
     } else {
         ESP_LOGE(TAG, "WiFi connection timeout");
