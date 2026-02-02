@@ -13,7 +13,7 @@
 #include "config.h"
 
 /* 和风天气API配置 */
-#define API_HOST            "devapi.qweatherapi.com"
+#define API_HOST            WEATHER_API_HOST
 #define API_KEY             WEATHER_API_KEY
 #define WEATHER_LOCATION_ID LOCATION_ID
 

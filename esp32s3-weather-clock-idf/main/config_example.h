@@ -1,7 +1,8 @@
 // config_example.h
 // 复制此文件为config.h并填写真实信息
 
-// 和风天气API密钥
+// 和风天气API配置
+#define WEATHER_API_HOST "devapi.qweatherapi.com"
 #define WEATHER_API_KEY "your_api_key_here"
 
 // WiFi网络信息
