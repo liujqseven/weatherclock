@@ -23,18 +23,23 @@ static const char *TAG = "MAIN_APP";
 /* 任务句柄 */
 static TaskHandle_t weather_update_task_handle = NULL;
 static TaskHandle_t display_update_task_handle = NULL;
-static TimerHandle_t led_blink_timer = NULL;
+static TaskHandle_t led_blink_task_handle = NULL;
 
 /* 全局数据 */
 static weather_data_t current_weather_data = {0};
 static bool weather_data_available = false;
 
 /**
- * @brief LED闪烁定时器回调
+ * @brief LED闪烁任务
  */
-static void led_blink_timer_callback(TimerHandle_t xTimer)
+static void led_blink_task(void *pvParameters)
 {
-    LED_TOGGLE();
+    ESP_LOGI(TAG, "LED blink task started");
+    
+    while (1) {
+        LED_TOGGLE();
+        vTaskDelay(pdMS_TO_TICKS(1000));  // 1秒闪烁一次
+    }
 }
 
 /**
@@ -146,11 +151,13 @@ void app_main(void)
     /* 清除启动信息区域 */
     lcd_display_fill_rect(0, 0, SCREEN_WIDTH, 23, COLOR_BLACK);
     
-    /* 创建LED闪烁定时器（500ms周期） */
-    led_blink_timer = xTimerCreate("LED Blink", pdMS_TO_TICKS(500), 
-                                   pdTRUE, NULL, led_blink_timer_callback);
-    if (led_blink_timer != NULL) {
-        xTimerStart(led_blink_timer, 0);
+    /* 创建LED闪烁任务（500ms周期） */
+    BaseType_t led_task_result = xTaskCreate(led_blink_task, "led_blink", 2048, 
+                                           NULL, 3, &led_blink_task_handle);
+    if (led_task_result == pdPASS) {
+        ESP_LOGI(TAG, "LED blink task created successfully");
+    } else {
+        ESP_LOGE(TAG, "Failed to create LED blink task: %d", led_task_result);
     }
     
     /* 创建天气更新任务（需要较大的栈空间用于TLS和HTTP操作） */
