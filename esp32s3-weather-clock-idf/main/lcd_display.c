@@ -370,13 +370,106 @@ void lcd_display_init(void)
     lcd_write_command(CMD_SLPOUT);  /* 退出睡眠模式 */
     vTaskDelay(pdMS_TO_TICKS(120));
     
-    lcd_write_command(CMD_COLMOD);  /* 设置像素格式为RGB565 */
+    /* ST7735S 特有初始化命令 */
+    lcd_write_command(0xF0);  /* 命令锁，解锁所有命令 */
+    lcd_write_data(0xC3);
+    
+    lcd_write_command(0xF0);  /* 命令锁，解锁所有命令 */
+    lcd_write_data(0x96);
+    
+    lcd_write_command(0xF0);  /* 命令锁，解锁所有命令 */
+    lcd_write_data(0xC3);
+    
+    /* 电源控制1 */
+    lcd_write_command(0xC0);
+    lcd_write_data(0x28);
+    lcd_write_data(0x08);
+    
+    /* 电源控制2 */
+    lcd_write_command(0xC1);
+    lcd_write_data(0x08);
+    
+    /* 电源控制3 */
+    lcd_write_command(0xC2);
+    lcd_write_data(0x01);
+    lcd_write_data(0xFF);
+    
+    /* 电源控制4 */
+    lcd_write_command(0xC3);
+    lcd_write_data(0x80);
+    lcd_write_data(0x00);
+    
+    /* 电源控制5 */
+    lcd_write_command(0xC4);
+    lcd_write_data(0x01);
+    lcd_write_data(0xFF);
+    
+    /* VCOM控制1 */
+    lcd_write_command(0xC5);
+    lcd_write_data(0x3C);
+    lcd_write_data(0x38);
+    
+    /* VCOM偏移 */
+    lcd_write_command(0xC7);
+    lcd_write_data(0xBE);
+    
+    /* 设置像素格式为RGB565 */
+    lcd_write_command(CMD_COLMOD);
     lcd_write_data(0x55);
     
-    lcd_write_command(CMD_MADCTL);  /* 设置内存访问控制（竖屏模式） */
-    lcd_write_data(0x60);  /* MY=1, MX=0, MV=1, ML=0, BGR=0 */
+    /* 设置内存访问控制（横屏模式，BGR色彩） */
+    lcd_write_command(CMD_MADCTL);
+    lcd_write_data(0xA8);  /* MY=1, MX=1, MV=0, ML=0, BGR=1 */
     
-    lcd_write_command(CMD_DISPON);  /* 开启显示 */
+    /* 设置显示区域（160x80） */
+    lcd_write_command(CMD_CASET);  /* 列地址设置 */
+    lcd_write_data16(0x00);  /* 起始列 */
+    lcd_write_data16(0x9F);  /* 结束列（160-1=159=0x9F） */
+    
+    lcd_write_command(CMD_RASET);  /* 行地址设置 */
+    lcd_write_data16(0x00);  /* 起始行 */
+    lcd_write_data16(0x5F);  /* 结束行（80-1=79=0x5F） */
+    
+    /* 设置伽马曲线 */
+    lcd_write_command(0xE0);
+    lcd_write_data(0x04);
+    lcd_write_data(0x22);
+    lcd_write_data(0x07);
+    lcd_write_data(0x0A);
+    lcd_write_data(0x2E);
+    lcd_write_data(0x30);
+    lcd_write_data(0x25);
+    lcd_write_data(0x2A);
+    lcd_write_data(0x28);
+    lcd_write_data(0x26);
+    lcd_write_data(0x2E);
+    lcd_write_data(0x3A);
+    lcd_write_data(0x00);
+    lcd_write_data(0x01);
+    lcd_write_data(0x03);
+    lcd_write_data(0x13);
+    
+    lcd_write_command(0xE1);
+    lcd_write_data(0x04);
+    lcd_write_data(0x16);
+    lcd_write_data(0x06);
+    lcd_write_data(0x0D);
+    lcd_write_data(0x2D);
+    lcd_write_data(0x26);
+    lcd_write_data(0x23);
+    lcd_write_data(0x27);
+    lcd_write_data(0x27);
+    lcd_write_data(0x25);
+    lcd_write_data(0x2D);
+    lcd_write_data(0x3B);
+    lcd_write_data(0x00);
+    lcd_write_data(0x01);
+    lcd_write_data(0x04);
+    lcd_write_data(0x13);
+    
+    /* 开启显示 */
+    lcd_write_command(CMD_DISPON);
+    vTaskDelay(pdMS_TO_TICKS(120));
     
     /* 清屏 */
     lcd_display_clear();

@@ -16,7 +16,10 @@
 #include "wifi_manager.h"
 #include "ntp_client.h"
 #include "weather_client.h"
-#include "lcd_display.h"
+#include "lcd.h"
+
+/* 使用LCD头文件中定义的颜色宏 */
+// 颜色定义已在 lcd.h 中定义，直接使用即可
 
 static const char *TAG = "MAIN_APP";
 
@@ -28,6 +31,23 @@ static TaskHandle_t led_blink_task_handle = NULL;
 /* 全局数据 */
 static weather_data_t current_weather_data = {0};
 static bool weather_data_available = false;
+
+/**
+ * @brief 将中文天气状况转换为英文
+ */
+static char* translate_weather(const char* condition)
+{
+    if (condition == NULL) return "N/A";
+    
+    if (strcmp(condition, "晴") == 0) return "SUNNY";
+    if (strcmp(condition, "多云") == 0) return "CLOUDY";
+    if (strcmp(condition, "阴") == 0) return "OVERCAST";
+    if (strcmp(condition, "雨") == 0) return "RAIN";
+    if (strcmp(condition, "雪") == 0) return "SNOW";
+    if (strcmp(condition, "雾") == 0) return "FOG";
+    
+    return (char*)condition; /* 如果没有匹配的，返回原始值 */
+}
 
 /**
  * @brief LED闪烁任务
@@ -57,6 +77,11 @@ static void weather_update_task(void *pvParameters)
             if (err == ESP_OK) {
                 weather_data_available = true;
                 ESP_LOGI(TAG, "Weather data updated successfully");
+                
+                /* 天气数据更新后立即刷新屏幕 */
+                if (display_update_task_handle) {
+                    xTaskNotifyGive(display_update_task_handle);
+                }
             } else {
                 ESP_LOGE(TAG, "Failed to update weather data: %s", esp_err_to_name(err));
             }
@@ -77,15 +102,39 @@ static void display_update_task(void *pvParameters)
     ESP_LOGI(TAG, "Display update task started");
     
     while (1) {
-        /* 检查是否有有效的天气数据 */
-        if (weather_data_available) {
-            lcd_display_weather_data(&current_weather_data);
+        /* 等待通知或超时 */
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(30000)); // 30秒超时
+        
+        /* 每次都全屏刷新，确保显示正确 */
+        lcd_fill(0, 0, 159, 79, WHITE);
+        
+        /* 显示时间信息 */
+        struct tm timeinfo;
+        if (ntp_client_get_time(&timeinfo)) {
+            char time_str[32];
+            strftime(time_str, sizeof(time_str), "%H:%M:%S", &timeinfo);
+            lcd_show_string(5, 5, 150, 16, 16, time_str, BLACK);
+            
+            char date_str[32];
+            strftime(date_str, sizeof(date_str), "%Y-%m-%d", &timeinfo);
+            lcd_show_string(5, 25, 150, 16, 16, date_str, BLACK);
         } else {
-            lcd_display_error("No Data");
+            lcd_show_string(5, 5, 150, 16, 16, "--:--:--", BLACK);
         }
         
-        /* 每秒更新一次显示 */
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        if (weather_data_available) {
+            /* 显示天气数据 */
+            lcd_show_string(5, 45, 150, 16, 16, "Temp:", RED);
+            lcd_show_string(60, 45, 150, 16, 16, current_weather_data.temp, RED);
+            lcd_show_string(100, 45, 150, 16, 16, "WX:", BLUE);
+            
+            /* 转换天气状况为英文 */
+            char* weather_en = translate_weather(current_weather_data.text);
+            lcd_show_string(130, 45, 150, 16, 16, weather_en, BLUE);
+        } else {
+            /* 显示无数据信息 */
+            lcd_show_string(5, 45, 150, 16, 16, "No Weather Data", RED);
+        }
     }
 }
 
@@ -101,29 +150,32 @@ void app_main(void)
     LED_ON();
     vTaskDelay(pdMS_TO_TICKS(2000));
     
-    /* 初始化LCD显示 */
-    lcd_display_init();
-    lcd_display_boot_message();
+    /* 初始化SPI和LCD */
+    spi2_init();
+    lcd_init();
+    lcd_fill(0, 0, 159, 79, WHITE);
+    lcd_show_string(5, 5, 150, 16, 16, "Weather Clock", BLACK);
+    lcd_show_string(5, 25, 150, 16, 16, "Starting...", BLACK);
     
     /* 初始化WiFi */
-    lcd_display_wifi_status(25, "WiFi Connecting");
+    lcd_show_string(5, 45, 150, 16, 16, "WiFi Connecting", BLACK);
     esp_err_t err = wifi_manager_init();
     if (err == ESP_OK) {
-        lcd_display_wifi_status(35, "WiFi Connected!");
+        lcd_show_string(5, 45, 150, 16, 16, "WiFi Connected!", BLACK);
         ESP_LOGI(TAG, "WiFi initialized successfully");
     } else {
-        lcd_display_wifi_status(35, "WiFi Failed!");
-        ESP_LOGE(TAG, "WiFi initialization failed");
+        lcd_show_string(5, 45, 150, 16, 16, "WiFi Failed!", RED);
+        ESP_LOGE(TAG, "WiFi initialization failed: %s", esp_err_to_name(err));
     }
     
     /* 初始化NTP客户端 */
-    lcd_display_wifi_status(55, "Sync Time...");
+    lcd_show_string(5, 62, 150, 16, 16, "Sync Time...", BLACK);
     err = ntp_client_init();
     if (err == ESP_OK) {
-        lcd_display_wifi_status(55, "Time Synced!");
+        lcd_show_string(5, 62, 150, 16, 16, "Time Synced!", BLACK);
         ESP_LOGI(TAG, "NTP client initialized successfully");
     } else {
-        lcd_display_wifi_status(55, "Use Manual Time");
+        lcd_show_string(5, 62, 150, 16, 16, "Use Manual Time", BLUE);
         ESP_LOGW(TAG, "NTP client initialization failed, using manual time fallback");
     }
     vTaskDelay(pdMS_TO_TICKS(500));
@@ -132,24 +184,24 @@ void app_main(void)
     weather_client_init();
     
     /* 获取初始天气数据 */
-    lcd_display_wifi_status(45, "Fetching WX...");
+    lcd_show_string(5, 62, 150, 16, 16, "Fetching WX...", BLACK);
     if (wifi_manager_is_connected()) {
         err = weather_client_fetch_data(&current_weather_data);
         if (err == ESP_OK) {
             weather_data_available = true;
-            lcd_display_wifi_status(45, "WX Data OK!");
+            lcd_show_string(5, 62, 150, 16, 16, "WX Data OK!", BLACK);
             ESP_LOGI(TAG, "Initial weather data fetched successfully");
         } else {
-            lcd_display_wifi_status(45, "WX Data Fail!");
+            lcd_show_string(5, 62, 150, 16, 16, "WX Data Fail!", RED);
             ESP_LOGE(TAG, "Failed to fetch initial weather data");
         }
     } else {
-        lcd_display_wifi_status(45, "No WiFi!");
+        lcd_show_string(5, 62, 150, 16, 16, "No WiFi!", RED);
     }
     vTaskDelay(pdMS_TO_TICKS(500));
     
     /* 清除启动信息区域 */
-    lcd_display_fill_rect(0, 0, SCREEN_WIDTH, 23, COLOR_BLACK);
+    lcd_fill(0, 0, 159, 79, WHITE);
     
     /* 创建LED闪烁任务（500ms周期） */
     BaseType_t led_task_result = xTaskCreate(led_blink_task, "led_blink", 2048, 
