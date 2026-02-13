@@ -56,6 +56,10 @@ static void weather_update_task(void *pvParameters)
 {
     ESP_LOGI(TAG, "Weather update task started");
     
+    /* 任务启动后先延迟30分钟再获取天气数据，因为系统初始化时已经获取了一次 */
+    ESP_LOGI(TAG, "First weather update in 30 minutes (system init already fetched initial data)");
+    vTaskDelay(pdMS_TO_TICKS(30 * 60 * 1000));
+    
     while (1) {
         /* 检查WiFi连接状态 */
         if (wifi_manager_is_connected()) {
@@ -76,6 +80,34 @@ static void weather_update_task(void *pvParameters)
         
         /* 每30分钟更新一次天气数据 */
         vTaskDelay(pdMS_TO_TICKS(30 * 60 * 1000));
+    }
+}
+
+/**
+ * @brief 显示更新任务
+ * 
+ * 任务功能：
+ * 1. 首次运行时显示完整时间
+ * 2. 每秒只更新变化的时间部分
+ * 3. 不刷新整个屏幕，只更新时间区域
+ * @param pvParameters 任务参数（未使用）
+ */
+static void display_update_task(void *pvParameters)
+{
+    ESP_LOGI(TAG, "Display update task started");
+    
+    /* 等待一段时间，让其他任务先启动 */
+    vTaskDelay(pdMS_TO_TICKS(2000));
+    
+    /* 首次运行时显示完整时间 */
+    display_manager_update();
+    
+    while (1) {
+        /* 只更新时间显示 */
+        display_manager_update_time();
+        
+        /* 每秒更新一次 */
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
@@ -150,6 +182,13 @@ static esp_err_t create_system_tasks(void)
     err = task_manager_create_task(TASK_TYPE_WEATHER_UPDATE, weather_update_task, NULL);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to create weather update task: %s", esp_err_to_name(err));
+        return err;
+    }
+    
+    /* 创建显示更新任务 */
+    err = task_manager_create_task(TASK_TYPE_DISPLAY_UPDATE, display_update_task, NULL);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to create display update task: %s", esp_err_to_name(err));
         return err;
     }
     

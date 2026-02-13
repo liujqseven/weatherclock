@@ -14,6 +14,7 @@
 /* 函数声明 */
 esp_err_t display_manager_init(void);
 esp_err_t display_manager_update(void);
+esp_err_t display_manager_update_time(void);
 esp_err_t display_manager_update_weather(const weather_data_t *weather_data);
 esp_err_t display_manager_show_message(const char *message, uint16_t color);
 

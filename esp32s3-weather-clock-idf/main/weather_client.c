@@ -68,25 +68,60 @@ static bool parse_weather_json(const char *json_str, weather_data_t *data)
     
     /* 提取天气数据 */
     cJSON *temp = cJSON_GetObjectItem(now, "temp");
-    if (temp) strncpy(data->temp, cJSON_GetStringValue(temp), sizeof(data->temp) - 1);
+    if (temp) {
+        strncpy(data->temp, cJSON_GetStringValue(temp), sizeof(data->temp) - 1);
+        data->temp[sizeof(data->temp) - 1] = '\0';
+    } else {
+        data->temp[0] = '\0';
+    }
     
     cJSON *feelsLike = cJSON_GetObjectItem(now, "feelsLike");
-    if (feelsLike) strncpy(data->feelsLike, cJSON_GetStringValue(feelsLike), sizeof(data->feelsLike) - 1);
+    if (feelsLike) {
+        strncpy(data->feelsLike, cJSON_GetStringValue(feelsLike), sizeof(data->feelsLike) - 1);
+        data->feelsLike[sizeof(data->feelsLike) - 1] = '\0';
+    } else {
+        data->feelsLike[0] = '\0';
+    }
     
     cJSON *text = cJSON_GetObjectItem(now, "text");
-    if (text) strncpy(data->text, cJSON_GetStringValue(text), sizeof(data->text) - 1);
+    if (text) {
+        strncpy(data->text, cJSON_GetStringValue(text), sizeof(data->text) - 1);
+        data->text[sizeof(data->text) - 1] = '\0';
+    } else {
+        data->text[0] = '\0';
+    }
     
     cJSON *windDir = cJSON_GetObjectItem(now, "windDir");
-    if (windDir) strncpy(data->windDir, cJSON_GetStringValue(windDir), sizeof(data->windDir) - 1);
+    if (windDir) {
+        strncpy(data->windDir, cJSON_GetStringValue(windDir), sizeof(data->windDir) - 1);
+        data->windDir[sizeof(data->windDir) - 1] = '\0';
+    } else {
+        data->windDir[0] = '\0';
+    }
     
     cJSON *windScale = cJSON_GetObjectItem(now, "windScale");
-    if (windScale) strncpy(data->windScale, cJSON_GetStringValue(windScale), sizeof(data->windScale) - 1);
+    if (windScale) {
+        strncpy(data->windScale, cJSON_GetStringValue(windScale), sizeof(data->windScale) - 1);
+        data->windScale[sizeof(data->windScale) - 1] = '\0';
+    } else {
+        data->windScale[0] = '\0';
+    }
     
     cJSON *humidity = cJSON_GetObjectItem(now, "humidity");
-    if (humidity) strncpy(data->humidity, cJSON_GetStringValue(humidity), sizeof(data->humidity) - 1);
+    if (humidity) {
+        strncpy(data->humidity, cJSON_GetStringValue(humidity), sizeof(data->humidity) - 1);
+        data->humidity[sizeof(data->humidity) - 1] = '\0';
+    } else {
+        data->humidity[0] = '\0';
+    }
     
     cJSON *vis = cJSON_GetObjectItem(now, "vis");
-    if (vis) strncpy(data->vis, cJSON_GetStringValue(vis), sizeof(data->vis) - 1);
+    if (vis) {
+        strncpy(data->vis, cJSON_GetStringValue(vis), sizeof(data->vis) - 1);
+        data->vis[sizeof(data->vis) - 1] = '\0';
+    } else {
+        data->vis[0] = '\0';
+    }
     
     /* 提取更新时间 */
     cJSON *updateTime = cJSON_GetObjectItem(root, "updateTime");

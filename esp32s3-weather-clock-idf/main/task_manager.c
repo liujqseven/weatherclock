@@ -32,6 +32,13 @@ static task_info_t s_task_info[TASK_TYPE_MAX] = {
     },
     {
         .task_handle = NULL,
+        .task_name = "display_update",
+        .priority = 4,
+        .stack_size = 4096,
+        .is_running = false
+    },
+    {
+        .task_handle = NULL,
         .task_name = "system_health",
         .priority = 1,
         .stack_size = 2048,

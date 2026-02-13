@@ -25,12 +25,19 @@ static const char *TAG = "SYSTEM_INIT";
 
 /* 系统初始化状态 */
 static system_init_status_t s_init_status = {0};
+static bool s_system_initialized = false;
 
 /**
  * @brief 初始化系统所有模块
  */
 esp_err_t system_init(void)
 {
+    /* 防止重复初始化 */
+    if (s_system_initialized) {
+        ESP_LOGI(TAG, "System already initialized, skipping...");
+        return ESP_OK;
+    }
+    
     ESP_LOGI(TAG, "=== 开始系统初始化 ===");
     
     /* 初始化LED */
@@ -109,6 +116,9 @@ esp_err_t system_init(void)
     }
     vTaskDelay(pdMS_TO_TICKS(500));
     
+    /* 标记系统初始化完成 */
+    s_system_initialized = true;
+    
     ESP_LOGI(TAG, "=== 系统初始化完成 ===");
     return ESP_OK;
 }
@@ -170,6 +180,9 @@ esp_err_t system_cleanup(void)
         LED_OFF();
         s_init_status.led_initialized = false;
     }
+    
+    /* 重置初始化状态 */
+    s_system_initialized = false;
     
     ESP_LOGI(TAG, "=== 系统清理完成 ===");
     return ESP_OK;

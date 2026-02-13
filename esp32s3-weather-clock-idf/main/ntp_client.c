@@ -93,8 +93,12 @@ bool ntp_client_get_time(struct tm *timeinfo)
         time(&now);
         return localtime_r(&now, timeinfo) != NULL;
     } else {
-        /* 使用手动时间 */
-        time_t now = s_manual_start_time + (time(NULL) - s_manual_start_time);
+        /* 使用手动时间，基于启动时间计算当前时间 */
+        static time_t start_time = 0;
+        if (start_time == 0) {
+            start_time = time(NULL);
+        }
+        time_t now = s_manual_start_time + (time(NULL) - start_time);
         return localtime_r(&now, timeinfo) != NULL;
     }
 }
