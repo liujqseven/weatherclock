@@ -2,10 +2,16 @@
  * @file main.c
  * @brief 天气时钟主应用程序
  * @author ESP-IDF Version
+ * 
+ * 主应用程序文件，负责：
+ * 1. 初始化系统所有模块
+ * 2. 创建和管理系统任务
+ * 3. 监控系统运行状态
  */
 
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/timers.h"
@@ -13,44 +19,19 @@
 #include "esp_system.h"
 
 #include "led.h"
+#include "system_init.h"
+#include "task_manager.h"
 #include "wifi_manager.h"
-#include "ntp_client.h"
 #include "weather_client.h"
-#include "lcd.h"
-
-/* 使用LCD头文件中定义的颜色宏 */
-// 颜色定义已在 lcd.h 中定义，直接使用即可
+#include "display_manager.h"
 
 static const char *TAG = "MAIN_APP";
 
-/* 任务句柄 */
-static TaskHandle_t weather_update_task_handle = NULL;
-static TaskHandle_t display_update_task_handle = NULL;
-static TaskHandle_t led_blink_task_handle = NULL;
-
-/* 全局数据 */
-static weather_data_t current_weather_data = {0};
-static bool weather_data_available = false;
-
-/**
- * @brief 将中文天气状况转换为英文
- */
-static char* translate_weather(const char* condition)
-{
-    if (condition == NULL) return "N/A";
-    
-    if (strcmp(condition, "晴") == 0) return "SUNNY";
-    if (strcmp(condition, "多云") == 0) return "CLOUDY";
-    if (strcmp(condition, "阴") == 0) return "OVERCAST";
-    if (strcmp(condition, "雨") == 0) return "RAIN";
-    if (strcmp(condition, "雪") == 0) return "SNOW";
-    if (strcmp(condition, "雾") == 0) return "FOG";
-    
-    return (char*)condition; /* 如果没有匹配的，返回原始值 */
-}
-
 /**
  * @brief LED闪烁任务
+ * 
+ * 任务功能：控制LED灯每秒闪烁一次
+ * @param pvParameters 任务参数（未使用）
  */
 static void led_blink_task(void *pvParameters)
 {
@@ -64,6 +45,12 @@ static void led_blink_task(void *pvParameters)
 
 /**
  * @brief 天气更新任务
+ * 
+ * 任务功能：
+ * 1. 检查WiFi连接状态
+ * 2. 每30分钟获取一次天气数据
+ * 3. 更新天气数据后刷新屏幕显示
+ * @param pvParameters 任务参数（未使用）
  */
 static void weather_update_task(void *pvParameters)
 {
@@ -73,15 +60,13 @@ static void weather_update_task(void *pvParameters)
         /* 检查WiFi连接状态 */
         if (wifi_manager_is_connected()) {
             /* 获取天气数据 */
-            esp_err_t err = weather_client_fetch_data(&current_weather_data);
+            weather_data_t weather_data;
+            esp_err_t err = weather_client_fetch_data(&weather_data);
             if (err == ESP_OK) {
-                weather_data_available = true;
                 ESP_LOGI(TAG, "Weather data updated successfully");
                 
                 /* 天气数据更新后立即刷新屏幕 */
-                if (display_update_task_handle) {
-                    xTaskNotifyGive(display_update_task_handle);
-                }
+                display_manager_update_weather(&weather_data);
             } else {
                 ESP_LOGE(TAG, "Failed to update weather data: %s", esp_err_to_name(err));
             }
@@ -95,152 +80,115 @@ static void weather_update_task(void *pvParameters)
 }
 
 /**
- * @brief 显示更新任务
+ * @brief 系统健康检查任务
+ * 
+ * 任务功能：
+ * 1. 每10秒检查一次系统健康状态
+ * 2. 打印系统堆内存使用情况
+ * 3. 打印各任务栈使用情况
+ * @param pvParameters 任务参数（未使用）
  */
-static void display_update_task(void *pvParameters)
+static void system_health_check_task(void *pvParameters)
 {
-    ESP_LOGI(TAG, "Display update task started");
+    ESP_LOGI(TAG, "System health check task started");
     
-    while (1) {
-        /* 等待通知或超时 */
-        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(30000)); // 30秒超时
-        
-        /* 每次都全屏刷新，确保显示正确 */
-        lcd_fill(0, 0, 159, 79, WHITE);
-        
-        /* 显示时间信息 */
-        struct tm timeinfo;
-        if (ntp_client_get_time(&timeinfo)) {
-            char time_str[32];
-            strftime(time_str, sizeof(time_str), "%H:%M:%S", &timeinfo);
-            lcd_show_string(5, 5, 150, 16, 16, time_str, BLACK);
-            
-            char date_str[32];
-            strftime(date_str, sizeof(date_str), "%Y-%m-%d", &timeinfo);
-            lcd_show_string(5, 25, 150, 16, 16, date_str, BLACK);
-        } else {
-            lcd_show_string(5, 5, 150, 16, 16, "--:--:--", BLACK);
-        }
-        
-        if (weather_data_available) {
-            /* 显示天气数据 */
-            lcd_show_string(5, 45, 150, 16, 16, "Temp:", RED);
-            lcd_show_string(60, 45, 150, 16, 16, current_weather_data.temp, RED);
-            lcd_show_string(100, 45, 150, 16, 16, "WX:", BLUE);
-            
-            /* 转换天气状况为英文 */
-            char* weather_en = translate_weather(current_weather_data.text);
-            lcd_show_string(130, 45, 150, 16, 16, weather_en, BLUE);
-        } else {
-            /* 显示无数据信息 */
-            lcd_show_string(5, 45, 150, 16, 16, "No Weather Data", RED);
-        }
-    }
-}
-
-/**
- * @brief 应用程序主入口
- */
-void app_main(void)
-{
-    ESP_LOGI(TAG, "=== ESP32-S3M 天气显示系统启动 ===");
+    /* 等待一段时间，让其他任务先启动 */
+    vTaskDelay(pdMS_TO_TICKS(5000));
     
-    /* 初始化LED */
-    led_init();
-    LED_ON();
-    vTaskDelay(pdMS_TO_TICKS(2000));
-    
-    /* 初始化SPI和LCD */
-    spi2_init();
-    lcd_init();
-    lcd_fill(0, 0, 159, 79, WHITE);
-    lcd_show_string(5, 5, 150, 16, 16, "Weather Clock", BLACK);
-    lcd_show_string(5, 25, 150, 16, 16, "Starting...", BLACK);
-    
-    /* 初始化WiFi */
-    lcd_show_string(5, 45, 150, 16, 16, "WiFi Connecting", BLACK);
-    esp_err_t err = wifi_manager_init();
-    if (err == ESP_OK) {
-        lcd_show_string(5, 45, 150, 16, 16, "WiFi Connected!", BLACK);
-        ESP_LOGI(TAG, "WiFi initialized successfully");
-    } else {
-        lcd_show_string(5, 45, 150, 16, 16, "WiFi Failed!", RED);
-        ESP_LOGE(TAG, "WiFi initialization failed: %s", esp_err_to_name(err));
-    }
-    
-    /* 初始化NTP客户端 */
-    lcd_show_string(5, 62, 150, 16, 16, "Sync Time...", BLACK);
-    err = ntp_client_init();
-    if (err == ESP_OK) {
-        lcd_show_string(5, 62, 150, 16, 16, "Time Synced!", BLACK);
-        ESP_LOGI(TAG, "NTP client initialized successfully");
-    } else {
-        lcd_show_string(5, 62, 150, 16, 16, "Use Manual Time", BLUE);
-        ESP_LOGW(TAG, "NTP client initialization failed, using manual time fallback");
-    }
-    vTaskDelay(pdMS_TO_TICKS(500));
-    
-    /* 初始化天气客户端 */
-    weather_client_init();
-    
-    /* 获取初始天气数据 */
-    lcd_show_string(5, 62, 150, 16, 16, "Fetching WX...", BLACK);
-    if (wifi_manager_is_connected()) {
-        err = weather_client_fetch_data(&current_weather_data);
-        if (err == ESP_OK) {
-            weather_data_available = true;
-            lcd_show_string(5, 62, 150, 16, 16, "WX Data OK!", BLACK);
-            ESP_LOGI(TAG, "Initial weather data fetched successfully");
-        } else {
-            lcd_show_string(5, 62, 150, 16, 16, "WX Data Fail!", RED);
-            ESP_LOGE(TAG, "Failed to fetch initial weather data");
-        }
-    } else {
-        lcd_show_string(5, 62, 150, 16, 16, "No WiFi!", RED);
-    }
-    vTaskDelay(pdMS_TO_TICKS(500));
-    
-    /* 清除启动信息区域 */
-    lcd_fill(0, 0, 159, 79, WHITE);
-    
-    /* 创建LED闪烁任务（500ms周期） */
-    BaseType_t led_task_result = xTaskCreate(led_blink_task, "led_blink", 2048, 
-                                           NULL, 3, &led_blink_task_handle);
-    if (led_task_result == pdPASS) {
-        ESP_LOGI(TAG, "LED blink task created successfully");
-    } else {
-        ESP_LOGE(TAG, "Failed to create LED blink task: %d", led_task_result);
-    }
-    
-    /* 创建天气更新任务（需要较大的栈空间用于TLS和HTTP操作） */
-    xTaskCreate(weather_update_task, "weather_update", 16384, 
-                NULL, 5, &weather_update_task_handle);
-    
-    /* 创建显示更新任务 */
-    xTaskCreate(display_update_task, "display_update", 4096, 
-                NULL, 4, &display_update_task_handle);
-    
-    ESP_LOGI(TAG, "=== 系统初始化完成 ===");
-    
-    /* 主任务可以执行其他后台操作 */
     while (1) {
         /* 检查系统健康状态 */
         ESP_LOGD(TAG, "System running...");
-        ESP_LOGD(TAG, "  Free heap: %lu bytes", (unsigned long)esp_get_free_heap_size());
-        ESP_LOGD(TAG, "  Minimum free heap: %lu bytes", (unsigned long)esp_get_minimum_free_heap_size());
+        ESP_LOGD(TAG, "  Free heap: %" PRIu32 " bytes", esp_get_free_heap_size());
+        ESP_LOGD(TAG, "  Minimum free heap: %" PRIu32 " bytes", esp_get_minimum_free_heap_size());
         
         /* 检查任务栈使用情况 */
-        if (weather_update_task_handle) {
-            UBaseType_t stack_high_water_mark = uxTaskGetStackHighWaterMark(weather_update_task_handle);
-            ESP_LOGD(TAG, "  Weather task stack high water mark: %lu bytes", (unsigned long)stack_high_water_mark);
-        }
-        
-        if (display_update_task_handle) {
-            UBaseType_t stack_high_water_mark = uxTaskGetStackHighWaterMark(display_update_task_handle);
-            ESP_LOGD(TAG, "  Display task stack high water mark: %lu bytes", (unsigned long)stack_high_water_mark);
+        for (int i = 0; i < TASK_TYPE_MAX; i++) {
+            task_info_t task_info;
+            if (task_manager_get_task_info((task_type_t)i, &task_info) == ESP_OK && task_info.is_running) {
+                if (task_info.task_handle != NULL) {
+                    UBaseType_t stack_high_water_mark = uxTaskGetStackHighWaterMark(task_info.task_handle);
+                    ESP_LOGD(TAG, "  %s task stack high water mark: %u bytes", task_info.task_name, stack_high_water_mark);
+                }
+            }
         }
         
         /* 每10秒检查一次 */
         vTaskDelay(pdMS_TO_TICKS(10000));
     }
 }
+
+/**
+ * @brief 创建系统任务
+ * 
+ * 函数功能：
+ * 1. 初始化任务管理器
+ * 2. 创建LED闪烁任务
+ * 3. 创建天气更新任务
+ * 4. 创建系统健康检查任务
+ * @return ESP_OK 成功
+ * @return 其他错误码 失败
+ */
+static esp_err_t create_system_tasks(void)
+{
+    ESP_LOGD(TAG, "创建系统任务");
+    
+    /* 初始化任务管理器 */
+    esp_err_t err = task_manager_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Task manager initialization failed: %s", esp_err_to_name(err));
+        return err;
+    }
+    
+    /* 创建LED闪烁任务 */
+    err = task_manager_create_task(TASK_TYPE_LED_BLINK, led_blink_task, NULL);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to create LED blink task: %s", esp_err_to_name(err));
+        return err;
+    }
+    
+    /* 创建天气更新任务 */
+    err = task_manager_create_task(TASK_TYPE_WEATHER_UPDATE, weather_update_task, NULL);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to create weather update task: %s", esp_err_to_name(err));
+        return err;
+    }
+    
+    /* 创建系统健康检查任务 */
+    err = task_manager_create_task(TASK_TYPE_SYSTEM_HEALTH, system_health_check_task, NULL);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to create system health check task: %s", esp_err_to_name(err));
+        return err;
+    }
+    
+    return ESP_OK;
+}
+
+/**
+ * @brief 应用程序主入口
+ * 
+ * 函数功能：
+ * 1. 初始化系统所有模块
+ * 2. 创建系统任务
+ * 3. 监控系统运行状态
+ */
+void app_main(void)
+{
+    ESP_LOGI(TAG, "=== ESP32-S3 天气时钟系统启动 ===");
+    
+    /* 初始化系统所有模块 */
+    esp_err_t err = system_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "System initialization failed: %s", esp_err_to_name(err));
+        return;
+    }
+    
+    /* 创建系统任务 */
+    err = create_system_tasks();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to create system tasks: %s", esp_err_to_name(err));
+        return;
+    }
+    
+    ESP_LOGI(TAG, "=== 系统初始化完成 ===");
+}
+

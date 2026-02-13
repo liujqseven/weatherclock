@@ -20,19 +20,17 @@ static const char *TAG = "WEATHER_CLIENT";
 static bool s_has_valid_data = false;
 static weather_data_t s_weather_data = {0};
 
-/* 事件处理器缓冲区（使用静态变量，每个线程独立） */
-static __thread char *s_response_buffer = NULL;
-static __thread int s_response_length = 0;
+/* 事件处理器缓冲区（使用静态变量） */
+#define MAX_RESPONSE_BUFFER_SIZE 4096  // 4KB 最大响应缓冲区
+static char s_response_buffer[MAX_RESPONSE_BUFFER_SIZE] = {0};
+static int s_response_length = 0;
 
 /**
  * @brief 重置响应缓冲区
  */
 static void reset_response_buffer(void)
 {
-    if (s_response_buffer != NULL) {
-        free(s_response_buffer);
-        s_response_buffer = NULL;
-    }
+    memset(s_response_buffer, 0, MAX_RESPONSE_BUFFER_SIZE);
     s_response_length = 0;
 }
 
@@ -110,21 +108,14 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt)
     switch(evt->event_id) {
         case HTTP_EVENT_ON_DATA:
             if (evt->data_len > 0) {
-                /* 扩展缓冲区 */
-                char *new_buffer = (char *)realloc(s_response_buffer, s_response_length + evt->data_len + 1);
-                if (new_buffer == NULL) {
-                    ESP_LOGE(TAG, "Failed to reallocate response buffer");
-                    /* 释放旧缓冲区 */
-                    if (s_response_buffer != NULL) {
-                        free(s_response_buffer);
-                        s_response_buffer = NULL;
-                    }
-                    s_response_length = 0;
+                /* 检查缓冲区是否足够 */
+                if (s_response_length + evt->data_len + 1 > MAX_RESPONSE_BUFFER_SIZE) {
+                    ESP_LOGE(TAG, "Response buffer overflow");
+                    reset_response_buffer();
                     return ESP_FAIL;
                 }
-                s_response_buffer = new_buffer;
                 
-                /* 复制数据 */
+                /* 复制数据到静态缓冲区 */
                 memcpy(s_response_buffer + s_response_length, evt->data, evt->data_len);
                 s_response_length += evt->data_len;
                 s_response_buffer[s_response_length] = '\0';
@@ -246,13 +237,11 @@ esp_err_t weather_client_fetch_data(weather_data_t *data)
     if (is_gzip) {
         ESP_LOGI(TAG, "Decompressing GZIP data...");
         json_data = gzip_decompress((const uint8_t *)s_response_buffer, s_response_length, &json_size);
-        free(s_response_buffer);
-        s_response_buffer = NULL;
-        s_response_length = 0;
         
         if (json_data == NULL) {
             ESP_LOGE(TAG, "Failed to decompress GZIP data");
             esp_http_client_cleanup(client);
+            reset_response_buffer();
             return ESP_FAIL;
         }
         
@@ -262,12 +251,21 @@ esp_err_t weather_client_fetch_data(weather_data_t *data)
         }
     } else {
         /* 不是GZIP压缩，直接使用原始数据 */
-        json_data = s_response_buffer;
+        json_data = (char *)malloc(s_response_length + 1);
+        if (json_data == NULL) {
+            ESP_LOGE(TAG, "Failed to allocate memory for JSON data");
+            esp_http_client_cleanup(client);
+            reset_response_buffer();
+            return ESP_FAIL;
+        }
+        memcpy(json_data, s_response_buffer, s_response_length);
+        json_data[s_response_length] = '\0';
         json_size = s_response_length;
-        s_response_buffer = NULL;
-        s_response_length = 0;
         ESP_LOGI(TAG, "Using raw response data");
     }
+    
+    /* 重置响应缓冲区 */
+    reset_response_buffer();
     
     /* 解析JSON数据 */
     if (parse_weather_json(json_data, data)) {

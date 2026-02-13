@@ -71,7 +71,10 @@ esp32s3-weather-clock-idf/
 │   ├── ntp_client.c/h          # NTP时间同步模块
 │   ├── weather_client.c/h      # 天气API客户端模块
 │   ├── gzip_decompressor.c/h   # GZIP解压缩模块
-│   └── lcd_display.c/h         # TFT LCD显示驱动模块
+│   ├── display_manager.c/h     # 显示管理模块
+│   ├── system_init.c/h         # 系统初始化模块
+│   ├── task_manager.c/h        # 任务管理模块
+│   └── error_handler.c/h       # 错误处理模块
 └── components/
     └── zlib/                   # ZLIB压缩库（v1.3.1）
         ├── CMakeLists.txt      # ZLIB组件配置
@@ -318,35 +321,30 @@ char *gzip_decompress(const uint8_t *compressed_data,
 - 4KB解压缩缓冲区
 - 错误处理和内存管理
 
-### 6. LCD显示驱动模块 (lcd_display.c/h)
+### 6. 显示管理模块 (display_manager.c/h)
 
-**功能：** 驱动TFT LCD显示屏，显示天气信息
+**功能：** 管理TFT LCD显示屏，显示天气和时间信息
 
 ```c
 // API接口
-esp_err_t lcd_display_init(void);                    // 初始化LCD
-esp_err_t lcd_display_clear(void);                    // 清屏
-esp_err_t lcd_display_draw_pixel(int x, int y, uint16_t color); // 绘制像素
-esp_err_t lcd_display_draw_char(int x, int y, char c, uint16_t color); // 绘制字符
-esp_err_t lcd_display_draw_string(int x, int y, const char *str, uint16_t color); // 绘制字符串
-esp_err_t lcd_display_draw_weather(weather_data_t *data, char *time_str); // 绘制天气界面
+esp_err_t display_manager_init(void);                    // 初始化显示管理器
+esp_err_t display_manager_update(void);                  // 更新显示
+esp_err_t display_manager_update_weather(const weather_data_t *weather_data); // 更新天气显示
+esp_err_t display_manager_show_message(const char *message, uint16_t color); // 显示消息
 ```
 
 **显示布局：**
 
 ```
 ┌─────────────────────────────────┐
-│ 第1行: 日期 (2026-01-28)        │ [青色]
-│ 第2行: 星期 (WEDNESDAY)         │ [青色]
-│ 第3行: 时间 (17:14:03)          │ [黄色]
-│ 第4行: 城市和温度 (BEIJING 7C)  │ [白色+红色]
-│ 第5行: 体感温度 (FeelLike:5C)   │ [白色+黄色]
-│ 第6行: 天气状况 (WX: 多云)      │ [绿色+青色]
-│ 第7行: 风向 (Wind Dir: 北)      │ [白色+青色]
-│ 第8行: 风力等级 (Wind Spd: 3)   │ [白色+青色]
-│ 第9行: 湿度 (Humidity: 65%)     │ [白色+绿色]
-│ 第10行: 能见度 (Visible: 10km)  │ [白色+品红]
-│ 第11行: 更新时间 (Up: 17:14)    │ [白色+黄色]
+│ 第1行: 时间 (17:14:03)          │ [黑色]  (0,0)
+│ 第2行: 日期 (2026-01-28)        │ [黑色]  (0,20)
+│ 第3行: 温度 (Temp: 7C)          │ [红色]  (0,40)
+│ 第4行: 天气状况 (WX: SUNNY)     │ [蓝色]  (0,60)
+│ 第5行: 体感温度 (Feel: 5C)      │ [蓝色]  (0,80)
+│ 第6行: 风向 (Wind: N)           │ [黑色]  (0,100)
+│ 第7行: 风力等级 (Spd: 3)        │ [黑色]  (0,120)
+│ 第8行: 湿度 (Hum: 65%)          │ [红色]  (0,140)
 └─────────────────────────────────┘
 ```
 
@@ -358,33 +356,123 @@ esp_err_t lcd_display_draw_weather(weather_data_t *data, char *time_str); // 绘
 - 雪 → SNOW
 - 雾 → FOG
 
+**风向中英文转换：**
+- 北 → N
+- 东北 → NE
+- 东 → E
+- 东南 → SE
+- 南 → S
+- 西南 → SW
+- 西 → W
+- 西北 → NW
+
 **特性：**
 - SPI接口通信（20MHz）
 - 80x160竖屏模式
-- 支持12/16/24/32号字体（修复了16号以下字体显示问题）
+- 支持16/24/32号字体（修复了16号以下字体显示问题）
 - 16位RGB565颜色格式
 - 支持文本和图形绘制
 - 天气状况自动中英文转换
+- 风向自动中英文转换
+- 温度、湿度自动添加单位符号
 
-### 7. 主应用程序 (main.c)
+### 7. 系统初始化模块 (system_init.c/h)
+
+**功能：** 统一管理所有系统模块的初始化
+
+```c
+// API接口
+esp_err_t system_init(void);                           // 初始化系统所有模块
+esp_err_t system_get_init_status(system_init_status_t *status); // 获取系统初始化状态
+esp_err_t system_cleanup(void);                        // 清理系统所有模块
+```
+
+**初始化流程：**
+1. 初始化LED模块
+2. 初始化显示管理器
+3. 初始化WiFi模块
+4. 初始化NTP客户端
+5. 初始化天气客户端
+6. 获取初始天气数据
+
+**特性：**
+- 统一的初始化入口
+- 详细的错误处理
+- 状态管理和监控
+- 模块化设计
+
+### 8. 任务管理模块 (task_manager.c/h)
+
+**功能：** 管理系统所有任务的创建、删除和重启
+
+```c
+// API接口
+esp_err_t task_manager_init(void);                       // 初始化任务管理器
+esp_err_t task_manager_create_task(task_type_t task_type, TaskFunction_t task_function, void *task_params); // 创建任务
+esp_err_t task_manager_delete_task(task_type_t task_type); // 删除任务
+esp_err_t task_manager_restart_task(task_type_t task_type, TaskFunction_t task_function, void *task_params); // 重启任务
+esp_err_t task_manager_get_task_info(task_type_t task_type, task_info_t *task_info); // 获取任务信息
+bool task_manager_is_task_running(task_type_t task_type); // 检查任务是否运行
+```
+
+**任务类型：**
+- TASK_TYPE_LED_BLINK: LED闪烁任务
+- TASK_TYPE_WEATHER_UPDATE: 天气更新任务
+- TASK_TYPE_SYSTEM_HEALTH: 系统健康检查任务
+
+**特性：**
+- 统一的任务管理接口
+- 任务状态监控
+- 任务重启和恢复
+- 模块化设计
+
+### 9. 错误处理模块 (error_handler.c/h)
+
+**功能：** 统一管理系统错误处理和日志
+
+```c
+// API接口
+esp_err_t error_handler_init(void);                      // 初始化错误处理器
+esp_err_t error_handler_log(error_code_t code, const char *message, const char *file, int line); // 记录错误
+const char *error_handler_get_message(error_code_t code); // 获取错误信息
+bool error_handler_check(esp_err_t err, error_code_t custom_code, const char *message, const char *file, int line); // 检查错误并记录
+```
+
+**错误码分类：**
+- 系统错误（0x1000-0x1FFF）
+- WiFi错误（0x2000-0x2FFF）
+- NTP错误（0x3000-0x3FFF）
+- 天气API错误（0x4000-0x4FFF）
+- 显示错误（0x5000-0x5FFF）
+
+**特性：**
+- 统一的错误处理机制
+- 详细的错误日志
+- 错误码管理
+- 模块化设计
+
+### 10. 主应用程序 (main.c)
 
 **功能：** 系统初始化、任务调度、状态监控
 
 ```c
 // FreeRTOS任务
 - weather_update_task:  每30分钟更新天气数据（优先级：5）
-- display_update_task:  每秒更新显示内容（优先级：4）
-- led_blink_task:       1秒闪烁（FreeRTOS任务）
+- led_blink_task:       1秒闪烁（优先级：3）
+- system_health_check_task:  每10秒检查系统健康状态（优先级：1）
 ```
 
 **任务调度：**
 
 ```c
-// 天气更新任务（高优先级）
+// 创建LED闪烁任务
+xTaskCreate(led_blink_task, "led_blink", 2048, NULL, 3, NULL);
+
+// 创建天气更新任务（高优先级）
 xTaskCreate(weather_update_task, "weather_update", 16384, NULL, 5, NULL);
 
-// 显示更新任务（低优先级）
-xTaskCreate(display_update_task, "display_update", 4096, NULL, 4, NULL);
+// 创建系统健康检查任务（低优先级）
+xTaskCreate(system_health_check_task, "system_health", 2048, NULL, 1, NULL);
 ```
 
 **特性：**
@@ -392,6 +480,7 @@ xTaskCreate(display_update_task, "display_update", 4096, NULL, 4, NULL);
 - 任务优先级管理
 - 系统状态监控
 - 错误处理和恢复
+- 模块化设计
 
 ## 🎨 显示效果
 
@@ -814,7 +903,7 @@ limitations under the License.
 
 ---
 
-**最后更新**: 2026-02-03
+**最后更新**: 2026-02-14
 
 **版本**: v1.0.0
 
