@@ -30,7 +30,7 @@ static const char *TAG = "MAIN_APP";
 /**
  * @brief LED闪烁任务
  * 
- * 任务功能：控制LED灯每秒闪烁一次
+ * 任务功能：控制LED灯每5秒闪烁一次
  * @param pvParameters 任务参数（未使用）
  */
 static void led_blink_task(void *pvParameters)
@@ -39,7 +39,7 @@ static void led_blink_task(void *pvParameters)
     
     while (1) {
         LED_TOGGLE();
-        vTaskDelay(pdMS_TO_TICKS(1000));  // 1秒闪烁一次
+        vTaskDelay(pdMS_TO_TICKS(5000));  // 5秒闪烁一次
     }
 }
 

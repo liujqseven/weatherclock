@@ -60,8 +60,11 @@ esp_err_t system_init(void)
     s_init_status.display_initialized = true;
     ESP_LOGI(TAG, "显示管理器初始化完成");
     
+    /* 清屏并准备显示初始化消息 */
+    display_manager_clear_messages();
+    
     /* 显示启动信息 */
-    display_manager_show_message("Starting WiFi...", BLACK);
+    display_manager_show_message("Starting WiFi...", WHITE);
     
     /* 初始化WiFi */
     ESP_LOGD(TAG, "初始化WiFi模块");
@@ -70,13 +73,13 @@ esp_err_t system_init(void)
         display_manager_show_message("WiFi Failed!", RED);
         /* WiFi失败不阻止其他模块初始化 */
     } else {
-        display_manager_show_message("WiFi Connected!", BLACK);
+        display_manager_show_message("WiFi Connected!", WHITE);
         s_init_status.wifi_initialized = true;
         ESP_LOGI(TAG, "WiFi模块初始化完成");
     }
     
     /* 显示时间同步信息 */
-    display_manager_show_message("Syncing Time...", BLACK);
+    display_manager_show_message("Syncing Time...", WHITE);
     
     /* 初始化NTP客户端 */
     ESP_LOGD(TAG, "初始化NTP客户端");
@@ -85,7 +88,7 @@ esp_err_t system_init(void)
         display_manager_show_message("Use Manual Time", BLUE);
         /* NTP失败不阻止其他模块初始化 */
     } else {
-        display_manager_show_message("Time Synced!", BLACK);
+        display_manager_show_message("Time Synced!", WHITE);
         s_init_status.ntp_initialized = true;
         ESP_LOGI(TAG, "NTP客户端初始化完成");
     }
@@ -98,7 +101,7 @@ esp_err_t system_init(void)
     ESP_LOGI(TAG, "天气客户端初始化完成");
     
     /* 显示天气数据获取信息 */
-    display_manager_show_message("Fetching WX...", BLACK);
+    display_manager_show_message("Fetching WX...", WHITE);
     
     /* 获取初始天气数据 */
     if (s_init_status.wifi_initialized && wifi_manager_is_connected()) {
@@ -107,7 +110,7 @@ esp_err_t system_init(void)
         if (ERROR_CHECK(err, ERR_WEATHER_FETCH_FAILED, "Initial weather data fetch failed")) {
             display_manager_show_message("WX Data Fail!", RED);
         } else {
-            display_manager_show_message("WX Data OK!", BLACK);
+            display_manager_show_message("WX Data OK!", WHITE);
             display_manager_update_weather(&weather_data);
             ESP_LOGI(TAG, "初始天气数据获取成功");
         }
