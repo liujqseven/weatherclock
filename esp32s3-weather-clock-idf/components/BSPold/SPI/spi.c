@@ -20,6 +20,9 @@
 
 #include "spi.h"
 
+/* SPI互斥锁 */
+static SemaphoreHandle_t s_spi_mutex = NULL;
+
 
 /**
  * @brief       初始化SPI
@@ -42,6 +45,12 @@ void spi2_init(void)
     /* 初始化SPI总线 */
     ret = spi_bus_initialize(SPI2_HOST, &spi_bus_conf, SPI_DMA_CH_AUTO);        /* SPI总线初始化 */
     ESP_ERROR_CHECK(ret);                                                       /* 校验参数值 */
+    
+    /* 创建SPI互斥锁 */
+    s_spi_mutex = xSemaphoreCreateMutex();
+    if (s_spi_mutex == NULL) {
+        ESP_LOGE("SPI", "Failed to create SPI mutex");
+    }
 }
 
 /**
@@ -55,10 +64,20 @@ void spi2_write_cmd(spi_device_handle_t handle, uint8_t cmd)
     esp_err_t ret;
     spi_transaction_t t = {0};
 
+    /* 获取互斥锁 */
+    if (s_spi_mutex != NULL) {
+        xSemaphoreTake(s_spi_mutex, portMAX_DELAY);
+    }
+
     t.length = 8;                                       /* 要传输的位数 一个字节 8位 */
     t.tx_buffer = &cmd;                                 /* 将命令填充进去 */
     ret = spi_device_polling_transmit(handle, &t);      /* 开始传输 */
     ESP_ERROR_CHECK(ret);                               /* 一般不会有问题 */
+    
+    /* 释放互斥锁 */
+    if (s_spi_mutex != NULL) {
+        xSemaphoreGive(s_spi_mutex);
+    }
 }
 
 /**
@@ -77,11 +96,21 @@ void spi2_write_data(spi_device_handle_t handle, const uint8_t *data, int len)
     {
         return;                                     /* 长度为0 没有数据要传输 */
     }
+    
+    /* 获取互斥锁 */
+    if (s_spi_mutex != NULL) {
+        xSemaphoreTake(s_spi_mutex, portMAX_DELAY);
+    }
 
-    t.length = len * 8;                             /* 要传输的位数 一个字节 8位 */
-    t.tx_buffer = data;                             /* 将命令填充进去 */
-    ret = spi_device_polling_transmit(handle, &t);  /* 开始传输 */
-    ESP_ERROR_CHECK(ret);                           /* 一般不会有问题 */
+    t.length = len * 8;                                /* 要传输的位数 */
+    t.tx_buffer = data;                                /* 将数据填充进去 */
+    ret = spi_device_polling_transmit(handle, &t);      /* 开始传输 */
+    ESP_ERROR_CHECK(ret);                               /* 一般不会有问题 */
+    
+    /* 释放互斥锁 */
+    if (s_spi_mutex != NULL) {
+        xSemaphoreGive(s_spi_mutex);
+    }
 }
 
 /**
