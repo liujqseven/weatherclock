@@ -60,17 +60,27 @@ static void weather_update_task(void *pvParameters)
     ESP_LOGI(TAG, "First weather update in 30 minutes (system init already fetched initial data)");
     vTaskDelay(pdMS_TO_TICKS(30 * 60 * 1000));
     
+    int update_count = 0;
+    
     while (1) {
+        update_count++;
+        ESP_LOGI(TAG, "Weather update cycle %d starting", update_count);
+        
         /* 检查WiFi连接状态 */
-        if (wifi_manager_is_connected()) {
+        bool is_connected = wifi_manager_is_connected();
+        ESP_LOGI(TAG, "WiFi connection status: %s", is_connected ? "CONNECTED" : "DISCONNECTED");
+        
+        if (is_connected) {
             /* 获取天气数据 */
             weather_data_t weather_data;
+            ESP_LOGI(TAG, "Fetching weather data...");
             esp_err_t err = weather_client_fetch_data(&weather_data);
             if (err == ESP_OK) {
                 ESP_LOGI(TAG, "Weather data updated successfully");
                 
                 /* 天气数据更新后立即刷新屏幕 */
                 display_manager_update_weather(&weather_data);
+                ESP_LOGI(TAG, "Weather display updated");
             } else {
                 ESP_LOGE(TAG, "Failed to update weather data: %s", esp_err_to_name(err));
             }
@@ -79,6 +89,7 @@ static void weather_update_task(void *pvParameters)
         }
         
         /* 每30分钟更新一次天气数据 */
+        ESP_LOGI(TAG, "Weather update cycle %d completed, next update in 30 minutes", update_count);
         vTaskDelay(pdMS_TO_TICKS(30 * 60 * 1000));
     }
 }

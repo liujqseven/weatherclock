@@ -44,12 +44,12 @@ static const char* translate_weather(const char* condition)
 {
     if (condition == NULL) return "N/A";
     
-    if (strcmp(condition, "晴") == 0) return "SUNNY";
-    if (strcmp(condition, "多云") == 0) return "CLOUDY";
-    if (strcmp(condition, "阴") == 0) return "OVERCAST";
-    if (strcmp(condition, "雨") == 0) return "RAIN";
-    if (strcmp(condition, "雪") == 0) return "SNOW";
-    if (strcmp(condition, "雾") == 0) return "FOG";
+    if (strstr(condition, "晴") != NULL) return "SUNNY";
+    if (strstr(condition, "多云") != NULL) return "CLOUDY";
+    if (strstr(condition, "阴") != NULL) return "OVERCAST";
+    if (strstr(condition, "雨") != NULL) return "RAIN";
+    if (strstr(condition, "雪") != NULL) return "SNOW";
+    if (strstr(condition, "雾") != NULL) return "FOG";
     
     return condition; /* 如果没有匹配的，返回原始值 */
 }
